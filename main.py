@@ -1,39 +1,16 @@
-#!/usr/local/bin/python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import os
-import google_auth_oauthlib.flow
-import googleapiclient.discovery
-import googleapiclient.errors
-from google.oauth2.credentials import Credentials
 import yaml
-import json
 import sys
 import pathlib
 import time
 from multiprocessing import Process
-import youtube_dl
+from youtube_dl import YoutubeDL
+import urllib.request
+import xml.etree.ElementTree as ET
 
-
-def get_credential():
-    credential = None
-    if os.path.exists('credential.json'):
-        with open('credential.json', 'r') as cred_file:
-            saved_credential = json.load(cred_file)
-            credential = Credentials(saved_credential['token'],
-                refresh_token = saved_credential['refresh_token'],
-                token_uri = saved_credential['token_uri'],
-                client_id = saved_credential['client_id'],
-                client_secret = saved_credential['client_secret'],
-                scopes = saved_credential['scopes'])
-    else:
-        flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
-            "client_secret.json",
-            ["https://www.googleapis.com/auth/youtube.readonly"])
-        credential = flow.run_console()
-        with open('credential.json', 'w') as cred_file:
-            cred_file.write(credential.to_json())
-    return credential
 
 def get_config():
     with open('config.yaml', 'r') as stream:
@@ -60,42 +37,57 @@ def get_config():
         except yaml.YAMLError as exc:
             return None, 'Cannot load config.yaml'
 
-def record_live_stream(video_id, save_to, title):
-    url = f'https://www.youtube.com/watch?v={video_id}'
-    print(f'[INFO] start recording {title}: {url}')
+def record_live_stream(video_url, save_to, title):
+    print(f'[INFO] start recording {title}: {video_url}')
     os.chdir(os.path.join(os.getcwd(), save_to))
-    with youtube_dl.YoutubeDL() as ytb_dl:
-        ytb_dl.download([url])
+    with YoutubeDL(params={'quiet': True}) as ytb_dl:
+        ytb_dl.download([video_url])
+    print(f'[INFO] finished recording {title}: {video_url}')
 
 def main():
     config, err = get_config()
     if err is not None:
         print(f'[ERROR] {err}')
         sys.exit(1)
-    print(config)
-    credential = get_credential()
-    youtube = googleapiclient.discovery.build('youtube', 'v3',
-        credentials=credential)
-    recorders = {}
+    
+    videos_seen = {}
+    if os.path.exists('videos_seen.yaml'):
+        with open('videos_seen.yaml', 'r') as videos_seen_file:
+            videos_seen = yaml.load(videos_seen_file)
 
     while True:
-        for c in config['channels']:            
-            request = youtube.search().list(
-                part='snippet',
-                channelId=c['id'],
-                eventType='live',
-                type='video',
-                forMine=True,
+        print('[INFO] Checking for videos to download')
+        for c in config['channels']:
+            channel_id = c['id']
+            req = urllib.request.Request(
+                f'https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}',
+                headers={'User-Agent': 'FeedFetcher-Google; (+http://www.google.com/feedfetcher.html)'}
             )
-            response = request.execute()
-            items = response.get('items', [])
-            for item in items:
-                video_id = item['id']['videoId']
-                if recorders.get(video_id) is None:
-                    recorders[video_id] = True
-                    p = Process(target=record_live_stream, 
-                        args=(video_id, c['save_to'], item['snippet']['title']))
-                    p.start()
+            xml_string = urllib.request.urlopen(req).read().decode('utf-8')
+            root = ET.fromstring(xml_string)
+            videos = []
+            for child in list(root):
+                if child.tag.endswith('}entry'):
+                    video = {}
+                    for child_child in list(child):
+                        if child_child.tag.endswith('}videoId'):
+                            video['id'] = child_child.text
+                        if child_child.tag.endswith('}title'):
+                            video['title'] = child_child.text
+                    videos.append(video)
+
+            with YoutubeDL(params={'quiet': True}) as ytb_dl:
+                for video in videos:
+                    video_id = video["id"]
+                    if videos_seen.get(video_id) is None:
+                        url = f'https://www.youtube.com/watch?v={video_id}'
+                        res = ytb_dl.extract_info(url, download=False, force_generic_extractor=False)
+                        if res['is_live']:
+                            p = Process(target=record_live_stream, args=(url, c['save_to'], video['title']))
+                            p.start()
+                        videos_seen[video_id] = True
+        with open('videos_seen.yaml', 'w') as videos_seen_file:
+            yaml.dump(videos_seen, videos_seen_file)
         time.sleep(config['interval'])
         new_config, err = get_config()
         if err is not None:

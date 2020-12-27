@@ -1,13 +1,13 @@
 .DS_Store
+.vscode/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
 
-/client_secret.json
-/credential.json
 /config.yaml
+/videos_seen.yaml
 
 # C extensions
 *.so
