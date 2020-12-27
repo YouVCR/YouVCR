@@ -53,7 +53,9 @@ def main():
     videos_seen = {}
     if os.path.exists('videos_seen.yaml'):
         with open('videos_seen.yaml', 'r') as videos_seen_file:
-            videos_seen = yaml.load(videos_seen_file)
+            videos_seen = yaml.safe_load(videos_seen_file)
+            if type(videos_seen) != dict:
+                videos_seen = {}
 
     while True:
         print('[INFO] Checking for videos to download')
