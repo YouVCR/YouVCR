@@ -34,7 +34,7 @@ def get_config():
                 else:
                     return None, '`channels[].save_to must be a writable directory path'
             return config, None
-        except yaml.YAMLError as exc:
+        except:
             return None, 'Cannot load config.yaml'
 
 def record_live_stream(video_url, save_to, title):
