@@ -1,7 +1,13 @@
+.DS_Store
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+/client_secret.json
+/credential.json
+/config.yaml
 
 # C extensions
 *.so
