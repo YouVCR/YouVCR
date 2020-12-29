@@ -25,7 +25,7 @@ def get_config():
                 return None, '`channels` must be a list'
             for c in channels:
                 if type(c.get('id')) != str:
-                    return None, '`chennels[].id must be a string'
+                    return None, '`channels[].id must be a string'
                 save_to = c.get('save_to')
                 if type(save_to) == str:
                     try:
@@ -38,12 +38,25 @@ def get_config():
         except:
             return None, 'Cannot load config.yaml'
 
+
 def record_live_stream(video_url, save_to, title):
     print(f'[INFO] start recording {title}: {video_url}')
     os.chdir(os.path.join(os.getcwd(), save_to))
     with YoutubeDL(params={'quiet': True}) as ytb_dl:
         ytb_dl.download([video_url])
     print(f'[INFO] finished recording {title}: {video_url}')
+
+
+class YouVCRSilentLogger(object):
+    def debug(self, msg):
+        pass
+
+    def warning(self, msg):
+        pass
+
+    def error(self, msg):
+        pass
+
 
 def main():
     config, err = get_config()
@@ -58,6 +71,7 @@ def main():
             if type(videos_seen) != dict:
                 videos_seen = {}
 
+    silent_logger = YouVCRSilentLogger()
     while True:
         print('[INFO] Checking for videos to download')
         for c in config['channels']:
@@ -79,7 +93,7 @@ def main():
                             video['title'] = child_child.text
                     videos.append(video)
 
-            with YoutubeDL(params={'quiet': True}) as ytb_dl:
+            with YoutubeDL(params={'quiet': True, 'logger': silent_logger}) as ytb_dl:
                 for video in videos:
                     video_id = video["id"]
                     if videos_seen.get(video_id) is None:
@@ -94,7 +108,7 @@ def main():
                             scheduled = "This live event will begin in"
                             if scheduled in err.args[0]:
                                 start = err.args[0].index(scheduled)
-                                print(f"[INFO] Found scheduled live: {url}", err.args[0][start:])
+                                print(f"[INFO] Found scheduled live: {url}.", err.args[0][start:])
                             else:
                                 print(err.args[0])
                         except Exception as err:
@@ -107,6 +121,7 @@ def main():
             print(err)
         else:
             config = new_config
+
 
 if __name__ == "__main__":
     main()
