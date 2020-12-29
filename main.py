@@ -1,20 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
-import yaml
-import sys
-import pathlib
-import time
+import argparse
 from multiprocessing import Process
-from youtube_dl import YoutubeDL
-from youtube_dl.utils import DownloadError
+import os
+import pathlib
+import sys
+import time
 import urllib.request
 import xml.etree.ElementTree as ET
+import yaml
+from youtube_dl import YoutubeDL
+from youtube_dl.utils import DownloadError
 
 
-def get_config():
-    with open('config.yaml', 'r') as stream:
+def parse_arg():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--conf', type=str, help='Path to config file', default='config.yaml')
+    parser.add_argument('-d', '--dir', type=str, help='Path to working directory', default='.')
+    return parser.parse_args()
+
+
+def get_config(config_path):
+    with open(config_path, 'r') as stream:
         try:
             config = yaml.safe_load(stream)
             interval = config.get('interval')
@@ -59,11 +67,13 @@ class YouVCRSilentLogger(object):
 
 
 def main():
-    config, err = get_config()
+    args = parse_arg()
+    config, err = get_config(args.conf)
     if err is not None:
         print(f'[ERROR] {err}')
         sys.exit(1)
-    
+    os.chdir(args.dir)
+
     videos_seen = {}
     if os.path.exists('videos_seen.yaml'):
         with open('videos_seen.yaml', 'r') as videos_seen_file:
