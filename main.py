@@ -8,6 +8,7 @@ import pathlib
 import time
 from multiprocessing import Process
 from youtube_dl import YoutubeDL
+from youtube_dl.utils import DownloadError
 import urllib.request
 import xml.etree.ElementTree as ET
 
@@ -83,11 +84,21 @@ def main():
                     video_id = video["id"]
                     if videos_seen.get(video_id) is None:
                         url = f'https://www.youtube.com/watch?v={video_id}'
-                        res = ytb_dl.extract_info(url, download=False, force_generic_extractor=False)
-                        if res['is_live']:
-                            p = Process(target=record_live_stream, args=(url, c['save_to'], video['title']))
-                            p.start()
-                        videos_seen[video_id] = True
+                        try:
+                            res = ytb_dl.extract_info(url, download=False, force_generic_extractor=False)
+                            if res['is_live']:
+                                p = Process(target=record_live_stream, args=(url, c['save_to'], video['title']))
+                                p.start()
+                            videos_seen[video_id] = True
+                        except DownloadError as err:
+                            scheduled = "This live event will begin in"
+                            if scheduled in err.args[0]:
+                                start = err.args[0].index(scheduled)
+                                print(f"[INFO] Found scheduled live: {url}", err.args[0][start:])
+                            else:
+                                print(err.args[0])
+                        except Exception as err:
+                            print(f"[ERROR]: {err}")
         with open('videos_seen.yaml', 'w') as videos_seen_file:
             yaml.dump(videos_seen, videos_seen_file)
         time.sleep(config['interval'])
