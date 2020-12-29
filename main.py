@@ -126,7 +126,7 @@ def main():
         with open('videos_seen.yaml', 'w') as videos_seen_file:
             yaml.dump(videos_seen, videos_seen_file)
         time.sleep(config['interval'])
-        new_config, err = get_config()
+        new_config, err = get_config(args.conf)
         if err is not None:
             print(err)
         else:
